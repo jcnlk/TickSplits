@@ -8,7 +8,7 @@ import TickTimer from "../utils/TickTimer";
 import { data } from "../utils/data";
 import config from "../config";
 
-export const bossSplitData = new LocalStore("BetterSplits/data", { boss: {} }, "bossSplitPBs.json");
+export const bossSplitData = new LocalStore("TickSplits/data", { boss: {} }, "bossSplitPBs.json");
 
 const { BOSS } = SplitUtils.SPLIT_TYPES;
 

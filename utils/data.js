@@ -13,4 +13,4 @@ const defaultData = {
   }
 }
 
-export const data = new LocalStore("BetterSplits/data", defaultData, "data.json");
+export const data = new LocalStore("TickSplits/data", defaultData, "data.json");

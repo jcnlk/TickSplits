@@ -1,4 +1,4 @@
-import { @Vigilant, @SwitchProperty } from "Vigilance";
+import { @Vigilant, @SwitchProperty, @ButtonProperty } from "Vigilance";
 
 const moduleVersion = JSON.parse(FileLib.read("TickSplits", "metadata.json")).version;
 const moduleAuthor = JSON.parse(FileLib.read("TickSplits", "metadata.json")).author;
@@ -20,6 +20,16 @@ class Config {
         category: "General"
     })
     clearSplits = true;
+
+    @ButtonProperty({
+        name: "Edit HUD Positions",
+        description: "Open the HUD editor to customize position and scale of all HUD elements.",
+        placeholder: "Open Editor",
+        category: "General",
+    })
+    openHudGui() {
+        ChatLib.command("ts hud", true);
+    }
 
     constructor() {
         this.initialize(this);

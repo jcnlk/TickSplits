@@ -7,7 +7,7 @@ import SplitUtils from "../utils/splitUtils";
 import { data } from "../utils/data";
 import config from "../config";
 
-export const clearSplitData = new LocalStore("BetterSplits/data", { clear: {} }, "clearSplitPBs.json");
+export const clearSplitData = new LocalStore("TickSplits/data", { clear: {} }, "clearSplitPBs.json");
 
 const { CLEAR } = SplitUtils.SPLIT_TYPES;
 
