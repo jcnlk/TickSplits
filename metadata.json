@@ -1,0 +1,7 @@
+{
+  "name": "TickSplits",
+  "author": "jcnlk",
+  "entry": "index.js",
+  "version": "1.0.0",
+  "requires": ["Vigilance", "BloomCore", "tska"]
+}
