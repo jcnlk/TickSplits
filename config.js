@@ -4,7 +4,7 @@ const moduleVersion = JSON.parse(FileLib.read("TickSplits", "metadata.json")).ve
 const moduleAuthor = JSON.parse(FileLib.read("TickSplits", "metadata.json")).author;
 const configHeader = `&8[&6BetterSplits&8] &ev${moduleVersion} \nMade by ${moduleAuthor}`;
 
-@Vigilant("BetterSplits", "§6BetterSplits")
+@Vigilant("TickSplits", "§6TickSplits")
 
 class Config {
     @SwitchProperty({
