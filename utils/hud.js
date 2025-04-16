@@ -53,9 +53,9 @@ export class Hud {
    * @param {boolean} [background=false]
    * @param {any} [color=null]
    * @param {string} [hAlign="left"] - Horizontal alignment: "left", "center", or "right"
-   * @param {string} [vAlign="center"] - Vertical alignment: "top", "center", or "bottom"
+   * @param {string} [vAlign="top"] - Vertical alignment: "top", "center", or "bottom"
    */
-  constructor(name, defaultText, hudManager, data, isCustom = false, background = false, color = null, hAlign = "left", vAlign = "center") {
+  constructor(name, defaultText, hudManager, data, isCustom = false, background = false, color = null, hAlign = "left", vAlign = "top") {
     this.name = name;
     this.defaultText = defaultText;
     this.hudManager = hudManager;
