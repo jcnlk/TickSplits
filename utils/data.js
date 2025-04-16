@@ -2,14 +2,14 @@ import { LocalStore } from "../../tska/storage/LocalStore";
 
 const defaultData = {
   bossSplitsGui: {
-    x: 0.1,
-    y: 0.07,
+    x: 0,
+    y: 0,
     scale: 1
   },
   clearSplitsHud: {
-    x: 0.9, 
-    y: 0.06, 
-    scale: 1.0
+    x: 0.8, 
+    y: 0, 
+    scale: 1
   }
 }
 
