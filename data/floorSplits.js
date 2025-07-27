@@ -118,7 +118,11 @@ const splitInfo = {
             end: /^\[BOSS\] Necron: You went further than any human before, congratulations\.$/
         },
         {
-            name: "&cNecron"
+            name: "&cNecron",
+            end : /^\[BOSS\] Necron: All this, for nothing\.\.\.$/
+        },
+        {
+            name: "&3Animation"
         },
         {
             name: "&aBoss",
@@ -146,6 +150,10 @@ const splitInfo = {
         {
             name: "&cNecron",
             end: /^\[BOSS\] Necron: All this, for nothing\.\.\.$/
+        },
+        {
+            name: "&3Animation",
+            end: /^\[BOSS\] Wither King: You\.\. again\?$/
         },
         {
             name: "&5Dragons"
