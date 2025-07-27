@@ -101,10 +101,8 @@ const registerBossSplits = (floor) => {
         const improvement = SplitUtils.saveBestSplit(BOSS, floor, segmentName, tickTime, realtimeTime, bossSplitData);
         
         if (improvement.improvedTick || improvement.improvedRealtime) {
-          const pbType = improvement.improvedTick && improvement.improvedRealtime ? "both" : improvement.improvedTick ? "tick" : "realtime";
           const timeDisplay = (config.displayStyle === 1 || config.displayStyle === 2) ? SplitUtils.formatTime(realtimeToSave) : SplitUtils.formatTime(tickTimeToSave);
-          
-          ChatLib.chat(`${prefix} §dNew ${pbType} PB for ${floor.startsWith("M") ? "§c" : "§a"}§l${floor} ${displayName}: ${timeDisplay}`);
+          ChatLib.chat(`${prefix} §dNew Segment PB for ${floor.startsWith("M") ? "§c" : "§a"}§l${floor} ${displayName}: ${timeDisplay}`);
         }
 
         if (i < splitData.length - 1 && !splitData[i + 1].start) {

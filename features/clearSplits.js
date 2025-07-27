@@ -103,10 +103,8 @@ const handleClearSegmentComplete = (segmentName, timer) => {
       oldRealtimeBest: oldBests.realtime
     };
     
-    const pbType = improvement.improvedTick && improvement.improvedRealtime ? "both" : improvement.improvedTick ? "tick" : "realtime";
     const timeDisplay = (config.displayStyle === 1 || config.displayStyle === 2) ? SplitUtils.formatTime(realtimeToSave) : SplitUtils.formatTime(tickTimeToSave);
-    
-    ChatLib.chat(`${prefix} §dNew ${pbType} PB for ${floor.startsWith("M") ? "§c" : "§a"}§l${floor} ${displayName}: ${timeDisplay}`);
+    ChatLib.chat(`${prefix} §dNew Segment PB for ${floor.startsWith("M") ? "§c" : "§a"}§l${floor} ${displayName}: ${timeDisplay}`);
   }
   
   return { tickTime, realtimeTime };
