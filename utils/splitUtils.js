@@ -1,4 +1,5 @@
 import TickTimer from "./TickTimer";
+import config from "../config";
 
 export default class SplitUtils {
   static SPLIT_TYPES = {
@@ -30,6 +31,35 @@ export default class SplitUtils {
     return `${minutes}:${seconds.toString().padStart(2, '0')}.${msStr.slice(0, msDigits)}`;
   }
 
+  static formatRealtimeWithTick(timer, msDigits = 3) {
+    if (!(timer instanceof TickTimer)) return this.DEFAULT_TIMER_TEXT;
+    
+    const realtimeSeconds = timer.getRealtimeSeconds();
+    const tickSeconds = timer.getSeconds();
+    
+    const realtimeFormatted = this.formatTime(realtimeSeconds, msDigits);
+    const tickFormatted = this.formatTime(tickSeconds, msDigits);
+    
+    return `${realtimeFormatted} (${tickFormatted})`;
+  }
+
+  static getDisplayTime(timer, finalRealtimeTime = null, finalTickTime = null, msDigits = 3) {
+    const displayStyle = config.displayStyle;
+    
+    if (displayStyle === 0) { // Tick Time
+      if (finalTickTime !== null) return this.formatTime(finalTickTime, msDigits);
+      else if (timer instanceof TickTimer) return this.formatTime(timer.getSeconds(), msDigits);
+    } else if (displayStyle === 1) { // Realtime
+      if (finalRealtimeTime !== null) return this.formatTime(finalRealtimeTime, msDigits);
+      else if (timer instanceof TickTimer) return this.formatTime(timer.getRealtimeSeconds(), msDigits);
+    } else if (displayStyle === 2) { // Realtime + Tick
+      if (finalRealtimeTime !== null && finalTickTime !== null) return `${this.formatTime(finalRealtimeTime, msDigits)} (${this.formatTime(finalTickTime, msDigits)})`;
+      else if (timer instanceof TickTimer) return this.formatRealtimeWithTick(timer, msDigits);
+    }
+    
+    return this.DEFAULT_TIMER_TEXT;
+  }
+
   static padToWidth(text, targetWidth) {
     let paddedText = text;
     while (Renderer.getStringWidth(paddedText) < targetWidth) paddedText += " ";
@@ -43,7 +73,7 @@ export default class SplitUtils {
   }
 
   static getComparisonText(timeMs, bestTime, msDigits = 2) {
-    if (bestTime === null) return "";
+    if (bestTime === null || config.displayStyle === 2) return "";
     
     const diffFromBest = timeMs - bestTime;
     const prefix = diffFromBest < 0 ? "-" : "+";
@@ -52,35 +82,47 @@ export default class SplitUtils {
     return ` ${color}(${prefix}${this.formatTime(Math.abs(diffFromBest / 1000), msDigits)})`;
   }
 
-  static saveBestSplit(splitType, floor, segmentName, timeInSeconds, splitData) {
-    const unformatted = typeof segmentName.removeFormatting === 'function' 
-      ? segmentName.removeFormatting() 
-      : segmentName;
+  static saveBestSplit(splitType, floor, segmentName, tickTimeInSeconds, realtimeInSeconds, splitData) {
+    const unformatted = typeof segmentName.removeFormatting === 'function' ? segmentName.removeFormatting() : segmentName;
     
-    const timeMs = Math.floor(timeInSeconds * 1000);
+    const tickTimeMs = Math.floor(tickTimeInSeconds * 1000);
+    const realtimeMs = Math.floor(realtimeInSeconds * 1000);
     
     if (!splitData[splitType]) splitData[splitType] = {};
     if (!splitData[splitType][floor]) splitData[splitType][floor] = {};
+    if (!splitData[splitType][floor][unformatted]) splitData[splitType][floor][unformatted] = {};
     
-    const oldBest = splitData[splitType][floor][unformatted];
+    const oldTickBest = splitData[splitType][floor][unformatted].tick;
+    const oldRealtimeBest = splitData[splitType][floor][unformatted].realtime;
     
-    if (oldBest === undefined || oldBest === null || timeMs < oldBest) {
-      splitData[splitType][floor][unformatted] = timeMs;
-      splitData.save();
-      return true;
+    let improvedTick = false;
+    let improvedRealtime = false;
+    
+    if (oldTickBest === undefined || oldTickBest === null || tickTimeMs < oldTickBest) {
+      splitData[splitType][floor][unformatted].tick = tickTimeMs;
+      improvedTick = true;
     }
     
-    return false;
+    if (oldRealtimeBest === undefined || oldRealtimeBest === null || realtimeMs < oldRealtimeBest) {
+      splitData[splitType][floor][unformatted].realtime = realtimeMs;
+      improvedRealtime = true;
+    }
+    
+    if (improvedTick || improvedRealtime) splitData.save();
+    
+    return { improvedTick, improvedRealtime };
   }
 
   static getBestSplit(splitType, floor, segmentName, splitData) {
-    const unformatted = typeof segmentName.removeFormatting === 'function' 
-      ? segmentName.removeFormatting() 
-      : segmentName;
+    const unformatted = typeof segmentName.removeFormatting === 'function' ? segmentName.removeFormatting() : segmentName;
     
-    if (!splitData[splitType] || !splitData[splitType][floor] || splitData[splitType][floor][unformatted] === undefined) return null;
+    if (!splitData[splitType] || !splitData[splitType][floor] || !splitData[splitType][floor][unformatted]) return { tick: null, realtime: null };
     
-    return splitData[splitType][floor][unformatted];
+    const data = splitData[splitType][floor][unformatted];
+    return {
+      tick: data.tick || null,
+      realtime: data.realtime || null
+    };
   }
 
   static renderSplitHud(title, segments) {
@@ -121,7 +163,8 @@ export default class SplitUtils {
       active = false,
       completed = false,
       timer = null,
-      finalTime = null,
+      finalTickTime = null,
+      finalRealtimeTime = null,
       isTotal = false,
       floor,
       splitType,
@@ -132,18 +175,23 @@ export default class SplitUtils {
     let comparisonText = "";
     
     if (active && timer) {
-      let currentTime;
-      if (completed && finalTime !== null) currentTime = finalTime;
-      if (timer.isRunning || timer.getTicks() > 0) currentTime = timer.getSeconds();
-      else currentTime = 0;
+      if (completed && finalTickTime !== null && finalRealtimeTime !== null) timeStr = `${this.ACTIVE_TIMER_COLOR}${this.getDisplayTime(null, finalRealtimeTime, finalTickTime)}`;
+      else if (timer.isRunning || timer.getTicks() > 0) timeStr = `${this.ACTIVE_TIMER_COLOR}${this.getDisplayTime(timer)}`;
+      else timeStr = `${this.ACTIVE_TIMER_COLOR}${this.getDisplayTime(timer)}`;
       
-      timeStr = `${this.ACTIVE_TIMER_COLOR}${this.formatTime(currentTime)}`;
-      
-      if (completed && finalTime !== null && floor && splitType && splitData) {
-        const bestTimeMs = this.getBestSplit(splitType, floor, internalName || name, splitData);
-        if (bestTimeMs !== null) {
-          const timeMs = Math.floor(finalTime * 1000);
-          comparisonText = this.getComparisonText(timeMs, bestTimeMs);
+      if (completed && finalTickTime !== null && finalRealtimeTime !== null && floor && splitType && splitData && config.displayStyle !== 2) {
+        const bestTimes = this.getBestSplit(splitType, floor, internalName || name, splitData);
+        
+        if (config.displayStyle === 0) { // Tick Time
+          if (bestTimes.tick !== null) {
+            const timeMs = Math.floor(finalTickTime * 1000);
+            comparisonText = this.getComparisonText(timeMs, bestTimes.tick);
+          }
+        } else if (config.displayStyle === 1) { // Realtime
+          if (bestTimes.realtime !== null) {
+            const timeMs = Math.floor(finalRealtimeTime * 1000);
+            comparisonText = this.getComparisonText(timeMs, bestTimes.realtime);
+          }
         }
       }
     }
@@ -154,7 +202,8 @@ export default class SplitUtils {
       active,
       completed,
       timer,
-      finalTime,
+      finalTickTime,
+      finalRealtimeTime,
       isTotal,
       timeStr,
       comparisonText

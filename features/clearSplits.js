@@ -40,7 +40,8 @@ const clearState = {
   bloodFinished: false,
   portalEntered: false,
   bossEntered: false,
-  totalTime: 0,
+  totalTickTime: 0,
+  totalRealtimeTime: 0,
   newPBs: {}
 }
 
@@ -56,7 +57,7 @@ const clearSplitsHud = new Hud("clearSplitsHud", placeholderText, hudManager, da
 
 const resetClearState = () => {
   Object.keys(clearState).forEach(key => {
-    if (key === "totalTime") clearState[key] = 0;
+    if (key === "totalTickTime" || key === "totalRealtimeTime") clearState[key] = 0;
     if (key === "newPBs") clearState[key] = {};
     else clearState[key] = false;
   });
@@ -68,31 +69,47 @@ const resetClearState = () => {
 
 const handleClearSegmentComplete = (segmentName, timer) => {
   timer.stop();
-  const completionTime = timer.getSeconds();
+  const tickTime = timer.getSeconds();
+  const realtimeTime = timer.getRealtimeSeconds();
   const floor = Dungeon?.floor || 'Unknown';
 
   const displayName = SEGMENT_DISPLAY_NAMES[segmentName] || segmentName;
-  clearTimes[segmentName] = completionTime;
+  clearTimes[segmentName] = {
+    tick: tickTime,
+    realtime: realtimeTime
+  };
   
-  let timeToSave = completionTime;
+  let tickTimeToSave = tickTime;
+  let realtimeToSave = realtimeTime;
+  
   if (segmentName === SEGMENTS.BOSS_ENTRY) {
-    const totalTime = (clearTimes[SEGMENTS.BLOOD_OPEN] || 0) + (clearTimes[SEGMENTS.BLOOD_DONE] || 0) + (clearTimes[SEGMENTS.PORTAL] || 0);
-    clearState.totalTime = totalTime;
-    timeToSave = totalTime;
+    const totalTickTime = (clearTimes[SEGMENTS.BLOOD_OPEN]?.tick || 0) + (clearTimes[SEGMENTS.BLOOD_DONE]?.tick || 0) + (clearTimes[SEGMENTS.PORTAL]?.tick || 0);
+    const totalRealtimeTime = (clearTimes[SEGMENTS.BLOOD_OPEN]?.realtime || 0) + (clearTimes[SEGMENTS.BLOOD_DONE]?.realtime || 0) + (clearTimes[SEGMENTS.PORTAL]?.realtime || 0);
+    
+    clearState.totalTickTime = totalTickTime;
+    clearState.totalRealtimeTime = totalRealtimeTime;
+    tickTimeToSave = totalTickTime;
+    realtimeToSave = totalRealtimeTime;
   }
   
-  const oldBest = SplitUtils.getBestSplit(CLEAR, floor, segmentName, clearSplitData);
-  const isNewPB = SplitUtils.saveBestSplit(CLEAR, floor, segmentName, timeToSave, clearSplitData);
+  const oldBests = SplitUtils.getBestSplit(CLEAR, floor, segmentName, clearSplitData);
+  const improvement = SplitUtils.saveBestSplit(CLEAR, floor, segmentName, tickTimeToSave, realtimeToSave, clearSplitData);
   
-  if (isNewPB) {
+  if (improvement.improvedTick || improvement.improvedRealtime) {
     clearState.newPBs[segmentName] = {
-      isNewPB: true,
-      oldBest: oldBest
+      improvedTick: improvement.improvedTick,
+      improvedRealtime: improvement.improvedRealtime,
+      oldTickBest: oldBests.tick,
+      oldRealtimeBest: oldBests.realtime
     };
-    ChatLib.chat(`${prefix} §dNew segment PB for ${floor.startsWith("M") ? "§c" : "§a"}§l${floor} ${displayName}: ${SplitUtils.formatTime(timeToSave)}`);
+    
+    const pbType = improvement.improvedTick && improvement.improvedRealtime ? "both" : improvement.improvedTick ? "tick" : "realtime";
+    const timeDisplay = (config.displayStyle === 1 || config.displayStyle === 2) ? SplitUtils.formatTime(realtimeToSave) : SplitUtils.formatTime(tickTimeToSave);
+    
+    ChatLib.chat(`${prefix} §dNew ${pbType} PB for ${floor.startsWith("M") ? "§c" : "§a"}§l${floor} ${displayName}: ${timeDisplay}`);
   }
   
-  return completionTime;
+  return { tickTime, realtimeTime };
 }
 
 const registerClearTimers = () => {
@@ -199,38 +216,46 @@ const renderClearSplitsHud = () => {
     
     if (!active) return { name, timeStr: SplitUtils.DEFAULT_TIMER_TEXT };
     
-    const bloodOpenTime = clearState.bloodStarted ? (clearTimes[SEGMENTS.BLOOD_OPEN] || 0) : clearTimers[SEGMENTS.BLOOD_OPEN].getSeconds();
-    const bloodDoneTime = clearState.bloodFinished ? (clearTimes[SEGMENTS.BLOOD_DONE] || 0) : clearTimers[SEGMENTS.BLOOD_DONE].getSeconds();
-    const portalTime = clearState.portalEntered ? (clearTimes[SEGMENTS.PORTAL] || 0) : clearTimers[SEGMENTS.PORTAL].getSeconds();
-    
-    const totalTime = bloodOpenTime + bloodDoneTime + portalTime;
-    
-    let currentTime;
-    if (isTotal) currentTime = totalTime;
-    else currentTime = completed ? clearTimes[internalName] : clearTimers[internalName].getSeconds();
-    
-    const timeStr = `${SplitUtils.ACTIVE_TIMER_COLOR}${SplitUtils.formatTime(currentTime)}`;
-    
+    let timeStr;
     let comparisonText = "";
-    if (completed) {
-      const pbInfo = clearState.newPBs[internalName];
+    
+    if (isTotal) {
+      if (completed) timeStr = `${SplitUtils.ACTIVE_TIMER_COLOR}${SplitUtils.getDisplayTime(null, clearState.totalRealtimeTime, clearState.totalTickTime)}`;
+      else {
+        const realtimeTotal = clearTimers[SEGMENTS.BLOOD_OPEN].getRealtimeSeconds() + clearTimers[SEGMENTS.BLOOD_DONE].getRealtimeSeconds() +  clearTimers[SEGMENTS.PORTAL].getRealtimeSeconds();
+        const tickTotal = clearTimers[SEGMENTS.BLOOD_OPEN].getSeconds() + clearTimers[SEGMENTS.BLOOD_DONE].getSeconds() + clearTimers[SEGMENTS.PORTAL].getSeconds();
+        
+        timeStr = `${SplitUtils.ACTIVE_TIMER_COLOR}${SplitUtils.getDisplayTime(null, realtimeTotal, tickTotal)}`;
+      }
       
-      if (pbInfo && pbInfo.isNewPB && pbInfo.oldBest !== null) {
-        const timeMs = isTotal 
-          ? Math.floor(totalTime * 1000) 
-          : Math.floor(clearTimes[internalName] * 1000);
-          
-        comparisonText = ` ${SplitUtils.PB_IMPROVED_COLOR}(-${SplitUtils.formatTime(Math.abs((timeMs - pbInfo.oldBest) / 1000), 2)})`;
-      } else {
-        const oldBest = SplitUtils.getBestSplit(CLEAR, floor, internalName, clearSplitData);
-        if (oldBest !== null) {
-          const timeMs = isTotal 
-            ? Math.floor(totalTime * 1000) 
-            : Math.floor(clearTimes[internalName] * 1000);
-          
-          comparisonText = SplitUtils.getComparisonText(timeMs, oldBest);
+      if (completed && config.displayStyle !== 2) {
+        const bestTimes = SplitUtils.getBestSplit(CLEAR, floor, internalName, clearSplitData);
+        
+        if (config.displayStyle === 0 && bestTimes.tick !== null) {
+          const timeMs = Math.floor(clearState.totalTickTime * 1000);
+          comparisonText = SplitUtils.getComparisonText(timeMs, bestTimes.tick);
+        } else if (config.displayStyle === 1 && bestTimes.realtime !== null) {
+          const timeMs = Math.floor(clearState.totalRealtimeTime * 1000);
+          comparisonText = SplitUtils.getComparisonText(timeMs, bestTimes.realtime);
         }
       }
+    } else {
+      if (completed) {
+        const times = clearTimes[internalName];
+        timeStr = `${SplitUtils.ACTIVE_TIMER_COLOR}${SplitUtils.getDisplayTime(null, times.realtime, times.tick)}`;
+        
+        if (config.displayStyle !== 2) {
+          const bestTimes = SplitUtils.getBestSplit(CLEAR, floor, internalName, clearSplitData);
+          
+          if (config.displayStyle === 0 && bestTimes.tick !== null) {
+            const timeMs = Math.floor(times.tick * 1000);
+            comparisonText = SplitUtils.getComparisonText(timeMs, bestTimes.tick);
+          } else if (config.displayStyle === 1 && bestTimes.realtime !== null) {
+            const timeMs = Math.floor(times.realtime * 1000);
+            comparisonText = SplitUtils.getComparisonText(timeMs, bestTimes.realtime);
+          }
+        }
+      } else timeStr = `${SplitUtils.ACTIVE_TIMER_COLOR}${SplitUtils.getDisplayTime(clearTimers[internalName])}`;
     }
     
     return { name, timeStr, comparisonText };

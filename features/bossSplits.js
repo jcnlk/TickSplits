@@ -59,8 +59,10 @@ const registerBossSplits = (floor) => {
     
     currRunBossSplits[segmentName] = {
       timer: new TickTimer(),
-      diffFromBest: null,
-      completed: false
+      tickDiffFromBest: null,
+      realtimeDiffFromBest: null,
+      completed: false,
+      finalTimes: null
     };
     
     const currSplit = currRunBossSplits[segmentName];
@@ -73,6 +75,7 @@ const registerBossSplits = (floor) => {
         register("chat", () => {
           currSplit.timer.restart();
           currSplit.completed = false;
+          currSplit.finalTimes = null;
         }).setCriteria(startCriteria)
       );
     }
@@ -83,15 +86,25 @@ const registerBossSplits = (floor) => {
         
         currSplit.timer.stop();
         currSplit.completed = true;
-        const timeInSeconds = currSplit.timer.getSeconds();
-        const timeMs = Math.floor(timeInSeconds * 1000);
+        const tickTime = currSplit.timer.getSeconds();
+        const realtimeTime = currSplit.timer.getRealtimeSeconds();
+        currSplit.finalTimes = { tick: tickTime, realtime: realtimeTime };
         
-        const oldBest = SplitUtils.getBestSplit(BOSS, floor, segmentName, bossSplitData);
-        currSplit.diffFromBest = oldBest === null ? 0 : timeMs - oldBest;
+        const tickTimeMs = Math.floor(tickTime * 1000);
+        const realtimeMs = Math.floor(realtimeTime * 1000);
+        
+        const oldBests = SplitUtils.getBestSplit(BOSS, floor, segmentName, bossSplitData);
+        currSplit.tickDiffFromBest = oldBests.tick === null ? 0 : tickTimeMs - oldBests.tick;
+        currSplit.realtimeDiffFromBest = oldBests.realtime === null ? 0 : realtimeMs - oldBests.realtime;
         
         const displayName = segmentName.removeFormatting ? segmentName.removeFormatting() : segmentName;
-        if (SplitUtils.saveBestSplit(BOSS, floor, segmentName, timeInSeconds, bossSplitData)) {
-          ChatLib.chat(`${prefix} §dNew segment PB for ${floor.startsWith("M") ? "§c" : "§a"}§l${floor} ${displayName}: ${SplitUtils.formatTime(timeInSeconds)}`);
+        const improvement = SplitUtils.saveBestSplit(BOSS, floor, segmentName, tickTime, realtimeTime, bossSplitData);
+        
+        if (improvement.improvedTick || improvement.improvedRealtime) {
+          const pbType = improvement.improvedTick && improvement.improvedRealtime ? "both" : improvement.improvedTick ? "tick" : "realtime";
+          const timeDisplay = (config.displayStyle === 1 || config.displayStyle === 2) ? SplitUtils.formatTime(realtimeToSave) : SplitUtils.formatTime(tickTimeToSave);
+          
+          ChatLib.chat(`${prefix} §dNew ${pbType} PB for ${floor.startsWith("M") ? "§c" : "§a"}§l${floor} ${displayName}: ${timeDisplay}`);
         }
 
         if (i < splitData.length - 1 && !splitData[i + 1].start) {
@@ -130,15 +143,24 @@ const renderBossSplitsHud = () => {
     if (!split) return;
     
     const active = split.timer && (split.timer.isRunning || split.timer.getTicks() > 0);
-    const timeStr = active 
-      ? `${SplitUtils.ACTIVE_TIMER_COLOR}${SplitUtils.formatTime(split.timer.getSeconds())}` 
-      : SplitUtils.DEFAULT_TIMER_TEXT;
+    
+    let timeStr;
+    if (active) {
+      if (split.completed && split.finalTimes) timeStr = `${SplitUtils.ACTIVE_TIMER_COLOR}${SplitUtils.getDisplayTime(null, split.finalTimes.realtime, split.finalTimes.tick)}`;
+      else timeStr = `${SplitUtils.ACTIVE_TIMER_COLOR}${SplitUtils.getDisplayTime(split.timer)}`;
+    } else timeStr = SplitUtils.DEFAULT_TIMER_TEXT;
       
     let comparisonText = "";
-    if (split.completed && split.diffFromBest !== null) {
-      const prefix = split.diffFromBest < 0 ? "-" : "+";
-      const color = split.diffFromBest < 0 ? SplitUtils.PB_IMPROVED_COLOR : SplitUtils.PB_WORSE_COLOR;
-      comparisonText = ` ${color}(${prefix}${SplitUtils.formatTime(Math.abs(split.diffFromBest / 1000), 2)})`;
+    if (split.completed && config.displayStyle !== 2) {
+      if (config.displayStyle === 0 && split.tickDiffFromBest !== null) {
+        const prefix = split.tickDiffFromBest < 0 ? "-" : "+";
+        const color = split.tickDiffFromBest < 0 ? SplitUtils.PB_IMPROVED_COLOR : SplitUtils.PB_WORSE_COLOR;
+        comparisonText = ` ${color}(${prefix}${SplitUtils.formatTime(Math.abs(split.tickDiffFromBest / 1000), 2)})`;
+      } else if (config.displayStyle === 1 && split.realtimeDiffFromBest !== null) {
+        const prefix = split.realtimeDiffFromBest < 0 ? "-" : "+";
+        const color = split.realtimeDiffFromBest < 0 ? SplitUtils.PB_IMPROVED_COLOR : SplitUtils.PB_WORSE_COLOR;
+        comparisonText = ` ${color}(${prefix}${SplitUtils.formatTime(Math.abs(split.realtimeDiffFromBest / 1000), 2)})`;
+      }
     }
     
     segments.push({ name, timeStr, comparisonText });
@@ -148,15 +170,23 @@ const renderBossSplitsHud = () => {
     const bossSplit = currRunBossSplits["§aBoss"];
     const active = bossSplit.timer && (bossSplit.timer.isRunning || bossSplit.timer.getTicks() > 0);
     
-    const timeStr = active
-      ? `${SplitUtils.ACTIVE_TIMER_COLOR}${SplitUtils.formatTime(bossSplit.timer.getSeconds())}`
-      : SplitUtils.DEFAULT_TIMER_TEXT;
+    let timeStr;
+    if (active) {
+      if (bossSplit.completed && bossSplit.finalTimes) timeStr = `${SplitUtils.ACTIVE_TIMER_COLOR}${SplitUtils.getDisplayTime(null, bossSplit.finalTimes.realtime, bossSplit.finalTimes.tick)}`;
+      else timeStr = `${SplitUtils.ACTIVE_TIMER_COLOR}${SplitUtils.getDisplayTime(bossSplit.timer)}`;
+    } else timeStr = SplitUtils.DEFAULT_TIMER_TEXT;
       
     let comparisonText = "";
-    if (bossSplit.completed && bossSplit.diffFromBest !== null) {
-      const prefix = bossSplit.diffFromBest < 0 ? "-" : "+";
-      const color = bossSplit.diffFromBest < 0 ? SplitUtils.PB_IMPROVED_COLOR : SplitUtils.PB_WORSE_COLOR;
-      comparisonText = ` ${color}(${prefix}${SplitUtils.formatTime(Math.abs(bossSplit.diffFromBest / 1000), 2)})`;
+    if (bossSplit.completed && config.displayStyle !== 2) {
+      if (config.displayStyle === 0 && bossSplit.tickDiffFromBest !== null) {
+        const prefix = bossSplit.tickDiffFromBest < 0 ? "-" : "+";
+        const color = bossSplit.tickDiffFromBest < 0 ? SplitUtils.PB_IMPROVED_COLOR : SplitUtils.PB_WORSE_COLOR;
+        comparisonText = ` ${color}(${prefix}${SplitUtils.formatTime(Math.abs(bossSplit.tickDiffFromBest / 1000), 2)})`;
+      } else if (config.displayStyle === 1 && bossSplit.realtimeDiffFromBest !== null) {
+        const prefix = bossSplit.realtimeDiffFromBest < 0 ? "-" : "+";
+        const color = bossSplit.realtimeDiffFromBest < 0 ? SplitUtils.PB_IMPROVED_COLOR : SplitUtils.PB_WORSE_COLOR;
+        comparisonText = ` ${color}(${prefix}${SplitUtils.formatTime(Math.abs(bossSplit.realtimeDiffFromBest / 1000), 2)})`;
+      }
     }
     
     segments.push({ name: "§aBoss", timeStr, comparisonText });
