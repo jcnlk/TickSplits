@@ -98,7 +98,11 @@ const registerBossSplits = (floor) => {
         currSplit.realtimeDiffFromBest = oldBests.realtime === null ? 0 : realtimeMs - oldBests.realtime;
         
         const displayName = segmentName.removeFormatting ? segmentName.removeFormatting() : segmentName;
-        const improvement = SplitUtils.saveBestSplit(BOSS, floor, segmentName, tickTime, realtimeTime, bossSplitData);
+        
+        let tickTimeToSave = tickTime;
+        let realtimeToSave = realtimeTime;
+        
+        const improvement = SplitUtils.saveBestSplit(BOSS, floor, segmentName, tickTimeToSave, realtimeToSave, bossSplitData);
         
         if (improvement.improvedTick || improvement.improvedRealtime) {
           const timeDisplay = (config.displayStyle === 1 || config.displayStyle === 2) ? SplitUtils.formatTime(realtimeToSave) : SplitUtils.formatTime(tickTimeToSave);
